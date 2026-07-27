@@ -1,0 +1,312 @@
+================================================================================
+LongCat-Image-Edit-Turbo 昇腾NPU多卡并行推理改造 - 修改记录
+================================================================================
+
+改造目标：
+  将模型不同组件加载到不同NPU卡上，替代原来的单卡+CPU offloading方案，
+  以提高推理速度并减少单卡显存占用。
+
+设备分配方案：
+  npu:1 → Text Encoder + VAE（体积较小，共用一张卡）
+  npu:2 → Transformer（最大组件，独占一张卡）
+  npu:0 → 不使用（完全空闲）
+
+================================================================================
+修改1：文件头注释（第3-5行）
+================================================================================
+
+【修改前】
+"""
+LongCat-Image-Edit-Turbo在昇腾NPU上的推理测试脚本
+"""
+
+【修改后】
+"""
+LongCat-Image-Edit-Turbo在昇腾NPU上的多卡并行推理脚本
+采用Pipeline并行策略：将不同组件分配到不同NPU卡上，避免CPU offloading的搬运开销
+设备分配：Text Encoder + VAE -> npu:1 | Transformer -> npu:2 | 0号卡不使用
+"""
+
+【原因】更新脚本描述，反映多卡并行架构。
+
+
+================================================================================
+修改2：setup_environment() 函数（原第17-28行）
+================================================================================
+
+【修改前】
+def setup_environment():
+    """设置运行环境"""
+    # 设置设备 - 使用昇腾NPU
+    device = torch.device('npu:0')
+    print(f"使用设备：{device}")
+
+    # 设置随机种子以确保可重复性
+    torch.manual_seed(42)
+    if torch.npu.is_available():
+        torch.npu.manual_seed(42)
+
+    return device
+
+【修改后】
+def setup_environment():
+    """设置运行环境 - 多卡并行模式"""
+    # 设置各组件的目标设备，不使用0号卡
+    # npu:1 承载 Text Encoder + VAE（体积较小，共用一张卡）
+    # npu:2 承载 Transformer（最大组件，独占一张卡）
+    device_te = torch.device('npu:1')
+    device_transformer = torch.device('npu:2')
+
+    print(f"Text Encoder / VAE 设备：{device_te}")
+    print(f"Transformer 设备：{device_transformer}")
+
+    # 设置随机种子以确保可重复性
+    torch.manual_seed(42)
+    if torch.npu.is_available():
+        torch.npu.manual_seed(42)
+
+    return device_te, device_transformer
+
+【原因】原来只返回一个device对象(npu:0)，现在返回两个设备对象：
+  - device_te (npu:1) 用于Text Encoder和VAE
+  - device_transformer (npu:2) 用于Transformer
+  不再使用npu:0，避免0号卡被占用。
+
+
+================================================================================
+修改3：load_model() 函数签名（原第30行）
+================================================================================
+
+【修改前】
+def load_model(checkpoint_dir, device):
+
+【修改后】
+def load_model(checkpoint_dir, device_transformer):
+
+【原因】参数名从device改为device_transformer，明确表示这是transformer的目标设备。
+
+
+================================================================================
+修改4：load_model() 函数内部 - transformer设备放置（原第48-49行）
+================================================================================
+
+【修改前】
+    # 将transformer移动到NPU设备
+    transformer = transformer.to(device)
+    print("Transformer模型加载完成")
+
+【修改后】
+    # 将transformer移动到npu:2设备
+    transformer = transformer.to(device_transformer)
+    print(f"Transformer模型加载完成，设备：{device_transformer}")
+
+【原因】将transformer从原来的npu:0改为npu:2，并更新打印信息以显示具体设备。
+
+
+================================================================================
+修改5：create_pipeline() 函数签名（原第53行）
+================================================================================
+
+【修改前】
+def create_pipeline(checkpoint_dir, transformer, text_processor, device):
+    """创建编辑管道"""
+
+【修改后】
+def create_pipeline(checkpoint_dir, transformer, text_processor, device_te, device_transformer):
+    """创建编辑管道 - 多卡并行模式"""
+
+【原因】原来接收单一device参数，现在接收两个设备参数：
+  - device_te: Text Encoder和VAE的目标设备(npu:1)
+  - device_transformer: Transformer的目标设备(npu:2)
+
+
+================================================================================
+修改6：create_pipeline() 函数内部 - 管道创建后组件分配（原第61-73行）
+================================================================================
+
+【修改前】
+    pipe = LongCatImageEditPipeline.from_pretrained(
+        checkpoint_dir, 
+        transformer=transformer, 
+        text_processor=text_processor, 
+        torch_dtype=torch.bfloat16,  # 确保所有组件使用BFloat16精度
+    )
+
+    # 将管道移动到NPU设备
+    pipe = pipe.to(device)
+
+    # 启用CPU offload功能以解决NPU显存不足的问题
+    pipe.enable_model_cpu_offload()
+
+    # 注意：LongCatImageEditPipeline是自定义管道，不支持标准diffusers的某些内存优化方法
+    # enable_attention_slicing()和enable_vae_slicing()方法在此管道中不可用
+    # CPU offload本身可用有效减少NPU内存占用，但是会导致推理速度较慢
+
+    print("图像编辑管道创建完成")
+    return pipe
+
+【修改后】
+    pipe = LongCatImageEditPipeline.from_pretrained(
+        checkpoint_dir, 
+        transformer=transformer, 
+        text_processor=text_processor, 
+        torch_dtype=torch.bfloat16,
+    )
+
+    # === 多卡并行：手动将各组件分配到不同设备 ===
+    # 不再使用 pipe.to(device) 统一移动，而是分别放到各自的目标卡上
+
+    # Text Encoder 放到 npu:1
+    if hasattr(pipe, 'text_encoder') and pipe.text_encoder is not None:
+        pipe.text_encoder = pipe.text_encoder.to(device_te)
+        print(f"Text Encoder 已放置到 {device_te}")
+
+    # VAE 放到 npu:1（与Text Encoder共用）
+    if hasattr(pipe, 'vae') and pipe.vae is not None:
+        pipe.vae = pipe.vae.to(device_te)
+        print(f"VAE 已放置到 {device_te}")
+
+    # Transformer 确保在 npu:2 上（load_model时已移动，此处再次确认）
+    if hasattr(pipe, 'transformer') and pipe.transformer is not None:
+        pipe.transformer = pipe.transformer.to(device_transformer)
+        print(f"Transformer 已确认在 {device_transformer}")
+
+    # 注意：不再使用 enable_model_cpu_offload()
+    # 多卡部署已将组件分散到不同卡上，解决了显存问题
+    # 同时避免了CPU offloading中CPU<->NPU的搬运开销，推理速度更快
+
+    print("图像编辑管道创建完成")
+    return pipe
+
+【原因】这是最关键的改动：
+  1. 删除了 pipe.to(device)，这会把所有组件移到同一设备
+  2. 删除了 pipe.enable_model_cpu_offload()，这会导致CPU<->NPU搬运
+  3. 改为手动将各组件分别放到目标设备：
+     - text_encoder -> npu:1
+     - vae -> npu:1
+     - transformer -> npu:2
+  4. 使用 hasattr 检查确保组件存在，避免属性不存在时报错
+
+
+================================================================================
+修改7：perform_editing() 函数签名（原第76行）
+================================================================================
+
+【修改前】
+def perform_editing(pipe, input_image_path, prompt, output_path, device):
+    """执行图像编辑"""
+
+【修改后】
+def perform_editing(pipe, input_image_path, prompt, output_path):
+    """执行图像编辑"""
+
+【原因】移除了device参数，因为多卡模式下不再需要单一设备对象，
+  pipeline内部会自动处理各组件的张量设备转移。
+
+
+================================================================================
+修改8：perform_editing() 函数内部 - generator注释（原第91行）
+================================================================================
+
+【修改前】
+    # 创建随机数生成器（注意，目前使用CPU生成器）
+    generator = torch.Generator("cpu").manual_seed(43)
+
+【修改后】
+    # 创建随机数生成器（保持在CPU上，pipeline会自动处理张量的设备转移）
+    generator = torch.Generator("cpu").manual_seed(43)
+
+【原因】更新注释，说明generator保持在CPU上是合理的设计，pipeline会自动处理。
+
+
+================================================================================
+修改9：main() 函数 - 环境设置（原第137行）
+================================================================================
+
+【修改前】
+    print("LongCat-Image-Edit-Turbo昇腾NPU推理测试")
+    ...
+    # 设置环境
+    device = setup_environment()
+
+【修改后】
+    print("LongCat-Image-Edit-Turbo昇腾NPU多卡并行推理")
+    ...
+    # 设置环境 - 获取多设备配置
+    device_te, device_transformer = setup_environment()
+
+【原因】setup_environment()现在返回两个设备对象，需要用两个变量接收。
+
+
+================================================================================
+修改10：main() 函数 - 模型加载调用（原第155行）
+================================================================================
+
+【修改前】
+    # 加载模型组件
+    text_processor, transformer = load_model(args.checkpoint, device)
+
+【修改后】
+    # 加载模型组件（transformer加载到npu:2）
+    text_processor, transformer = load_model(args.checkpoint, device_transformer)
+
+【原因】load_model()现在接收device_transformer参数（npu:2），而非原来的device（npu:0）。
+
+
+================================================================================
+修改11：main() 函数 - 管道创建调用（原第158行）
+================================================================================
+
+【修改前】
+    # 创建管道（传递device参数）
+    pipe = create_pipeline(args.checkpoint, transformer, text_processor, device)
+
+【修改后】
+    # 创建管道（多卡并行：分别传递各组件的目标设备）
+    pipe = create_pipeline(args.checkpoint, transformer, text_processor, 
+                           device_te, device_transformer)
+
+【原因】create_pipeline()现在接收两个设备参数，需要同时传递device_te和device_transformer。
+
+
+================================================================================
+修改12：main() 函数 - 编辑执行调用（原第161行）
+================================================================================
+
+【修改前】
+    # 执行编辑
+    success = perform_editing(pipe, args.input, args.prompt, args.output, device)
+
+【修改后】
+    # 执行编辑（不再需要device参数）
+    success = perform_editing(pipe, args.input, args.prompt, args.output)
+
+【原因】perform_editing()已移除device参数，调用时不再传递。
+
+
+================================================================================
+总结
+================================================================================
+
+核心改动：
+  1. setup_environment() 返回两个设备对象 (npu:1, npu:2) 而非一个 (npu:0)
+  2. load_model() 将transformer加载到npu:2
+  3. create_pipeline() 手动将各组件分配到不同设备，替代 pipe.to(device) + cpu_offload
+  4. perform_editing() 移除device参数
+  5. main() 适配新的函数签名
+
+预期效果：
+  - 0号卡完全空闲
+  - Text Encoder + VAE 在1号卡（约3-4GB显存）
+  - Transformer 在2号卡（约12-16GB显存）
+  - 推理速度提升（避免CPU<->NPU搬运开销）
+  - 单卡显存占用降低
+
+注意事项：
+  1. 如果pipeline的__call__方法内部不会自动处理跨设备张量转移，
+     可能需要修改pipeline源码，在组件调用前手动执行 tensor.to(device)
+  2. 首次运行建议用 torch.npu.memory_stats() 监控各卡显存占用
+  3. npu:1和npu:2之间会有少量张量传输，但比CPU offloading快得多
+  4. 如果后续需要进一步优化，可考虑将Transformer做Tensor Parallelism分到更多卡
+
+================================================================================
