@@ -4,15 +4,51 @@
   "parts": [
     {
       "name": "magicbrush-approved-blue-325.zip.part001",
-      "size_bytes": 80000000
+      "size_bytes": 20000000
     },
     {
       "name": "magicbrush-approved-blue-325.zip.part002",
-      "size_bytes": 80000000
+      "size_bytes": 20000000
     },
     {
       "name": "magicbrush-approved-blue-325.zip.part003",
-      "size_bytes": 62185461
+      "size_bytes": 20000000
+    },
+    {
+      "name": "magicbrush-approved-blue-325.zip.part004",
+      "size_bytes": 20000000
+    },
+    {
+      "name": "magicbrush-approved-blue-325.zip.part005",
+      "size_bytes": 20000000
+    },
+    {
+      "name": "magicbrush-approved-blue-325.zip.part006",
+      "size_bytes": 20000000
+    },
+    {
+      "name": "magicbrush-approved-blue-325.zip.part007",
+      "size_bytes": 20000000
+    },
+    {
+      "name": "magicbrush-approved-blue-325.zip.part008",
+      "size_bytes": 20000000
+    },
+    {
+      "name": "magicbrush-approved-blue-325.zip.part009",
+      "size_bytes": 20000000
+    },
+    {
+      "name": "magicbrush-approved-blue-325.zip.part010",
+      "size_bytes": 20000000
+    },
+    {
+      "name": "magicbrush-approved-blue-325.zip.part011",
+      "size_bytes": 20000000
+    },
+    {
+      "name": "magicbrush-approved-blue-325.zip.part012",
+      "size_bytes": 2185461
     }
   ]
 }
