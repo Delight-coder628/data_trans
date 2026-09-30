@@ -1,0 +1,86 @@
+[
+  {
+    "sample_id": "000000000138",
+    "editing_type_id": "0",
+    "instruction": "Add a hat to the cat",
+    "image_path": "0_random_140/000000000138.jpg",
+    "mask_fraction": 0.14501571655273438
+  },
+  {
+    "sample_id": "212000000005",
+    "editing_type_id": "2",
+    "instruction": "Add earrings to the woman",
+    "image_path": "2_add_object_80/1_artificial/2_human/212000000005.jpg",
+    "mask_fraction": 0.03515625
+  },
+  {
+    "sample_id": "221000000001",
+    "editing_type_id": "2",
+    "instruction": "add a dog bone on the grass",
+    "image_path": "2_add_object_80/2_natural/1_animal/221000000001.jpg",
+    "mask_fraction": 0.4230995178222656
+  },
+  {
+    "sample_id": "222000000003",
+    "editing_type_id": "2",
+    "instruction": "Add a backpack to the woman",
+    "image_path": "2_add_object_80/2_natural/2_human/222000000003.jpg",
+    "mask_fraction": 0.4290122985839844
+  },
+  {
+    "sample_id": "312000000008",
+    "editing_type_id": "3",
+    "instruction": "Remove the sunglasses from the woman",
+    "image_path": "3_delete_object_80/1_artificial/2_human/312000000008.jpg",
+    "mask_fraction": 0.02220916748046875
+  },
+  {
+    "sample_id": "313000000002",
+    "editing_type_id": "3",
+    "instruction": "Remove the lit candle from the cupcake",
+    "image_path": "3_delete_object_80/1_artificial/3_indoor/313000000002.jpg",
+    "mask_fraction": 0.02208709716796875
+  },
+  {
+    "sample_id": "321000000000",
+    "editing_type_id": "3",
+    "instruction": "Remove the bee flying over the flowering tree branch",
+    "image_path": "3_delete_object_80/2_natural/1_animal/321000000000.jpg",
+    "mask_fraction": 0.0345306396484375
+  },
+  {
+    "sample_id": "324000000003",
+    "editing_type_id": "3",
+    "instruction": "Remove the small mushroom from the pine branch",
+    "image_path": "3_delete_object_80/2_natural/4_outdoor/324000000003.jpg",
+    "mask_fraction": 0.05059814453125
+  },
+  {
+    "sample_id": "111000000006",
+    "editing_type_id": "1",
+    "instruction": "Change the animal on the roof from a cat to a dog",
+    "image_path": "1_change_object_80/1_artificial/1_animal/111000000006.jpg",
+    "mask_fraction": 0.048236846923828125
+  },
+  {
+    "sample_id": "113000000004",
+    "editing_type_id": "1",
+    "instruction": "Change the animal in the fish bowl from fish to frog",
+    "image_path": "1_change_object_80/1_artificial/3_indoor/113000000004.jpg",
+    "mask_fraction": 0.025310516357421875
+  },
+  {
+    "sample_id": "122000000001",
+    "editing_type_id": "1",
+    "instruction": "change the spider man to robot",
+    "image_path": "1_change_object_80/2_natural/2_human/122000000001.jpg",
+    "mask_fraction": 0.17355728149414062
+  },
+  {
+    "sample_id": "122000000002",
+    "editing_type_id": "1",
+    "instruction": "Change the camera to a phone",
+    "image_path": "1_change_object_80/2_natural/2_human/122000000002.jpg",
+    "mask_fraction": 0.033885955810546875
+  }
+]
